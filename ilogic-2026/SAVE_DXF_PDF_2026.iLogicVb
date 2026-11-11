@@ -1,0 +1,72 @@
+' Unieke naam: voorkomt conflict met oude interne rule "saveDXF&PDF"
+
+Sub Main()
+	MessageBox.Show("Dit IS SAVE_DXF_PDF_2026 (externe rule).", "SAVE_DXF_PDF_2026")
+
+	Dim oDoc As Document = ThisDoc.Document
+
+	If String.IsNullOrWhiteSpace(oDoc.FullFileName) Then
+		MessageBox.Show("Sla de tekening eerst op.", "SAVE_DXF_PDF_2026")
+		Return
+	End If
+
+	If oDoc.DocumentType <> DocumentTypeEnum.kDrawingDocumentObject Then
+		MessageBox.Show( _
+			"Geen Inventor-tekening." & vbCrLf & _
+			"Type=" & oDoc.DocumentType.ToString() & vbCrLf & _
+			oDoc.FullFileName, _
+			"SAVE_DXF_PDF_2026")
+		Return
+	End If
+
+	Dim rev As String = ""
+	Try
+		rev = CStr(iProperties.Value("Project", "Revision Number"))
+	Catch
+		rev = ""
+	End Try
+
+	Dim folder As String = System.IO.Path.GetDirectoryName(oDoc.FullFileName)
+	Dim nameNoExt As String = System.IO.Path.GetFileNameWithoutExtension(oDoc.FullFileName)
+	Dim basePath As String = System.IO.Path.Combine(folder, nameNoExt & "_" & rev)
+	Dim dxfFile As String = basePath & ".dxf"
+	Dim pdfFile As String = basePath & ".pdf"
+
+	Try
+		oDoc.SaveAs(dxfFile, True)
+		MessageBox.Show("DXF OK:" & vbCrLf & dxfFile, "SAVE_DXF_PDF_2026")
+	Catch ex As Exception
+		MessageBox.Show("DXF mislukt:" & vbCrLf & ex.Message, "SAVE_DXF_PDF_2026")
+		Return
+	End Try
+
+	Try
+		Dim oAddIn As ApplicationAddIn = _
+			ThisApplication.ApplicationAddIns.ItemById("{0AC6FD95-2F4D-42CE-8BE0-8AEA580399E4}")
+		If oAddIn Is Nothing Then Throw New Exception("PDF translator niet gevonden.")
+		If Not oAddIn.Activated Then oAddIn.Activate()
+
+		Dim PDFAddIn As TranslatorAddIn = TryCast(oAddIn, TranslatorAddIn)
+		Dim oContext As TranslationContext = ThisApplication.TransientObjects.CreateTranslationContext()
+		oContext.Type = IOMechanismEnum.kFileBrowseIOMechanism
+		Dim oOptions As NameValueMap = ThisApplication.TransientObjects.CreateNameValueMap()
+		Dim oDataMedium As DataMedium = ThisApplication.TransientObjects.CreateDataMedium()
+		oDataMedium.FileName = pdfFile
+
+		If PDFAddIn.HasSaveCopyAsOptions(oDoc, oContext, oOptions) Then
+			oOptions.Value("Remove_Line_Weights") = 1
+			oOptions.Value("Vector_Resolution") = 400
+			oOptions.Value("Sheet_Range") = Inventor.PrintRangeEnum.kPrintAllSheets
+		End If
+
+		PDFAddIn.SaveCopyAs(oDoc, oContext, oOptions, oDataMedium)
+		MessageBox.Show("PDF OK:" & vbCrLf & pdfFile, "SAVE_DXF_PDF_2026")
+	Catch ex As Exception
+		Try
+			oDoc.SaveAs(pdfFile, True)
+			MessageBox.Show("PDF OK (SaveAs):" & vbCrLf & pdfFile, "SAVE_DXF_PDF_2026")
+		Catch ex2 As Exception
+			MessageBox.Show("PDF mislukt:" & vbCrLf & ex.Message & vbCrLf & ex2.Message, "SAVE_DXF_PDF_2026")
+		End Try
+	End Try
+End Sub

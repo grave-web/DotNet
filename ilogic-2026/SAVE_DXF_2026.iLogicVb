@@ -1,0 +1,45 @@
+' Unieke naam zodat Inventor niet per ongeluk een OUDE interne rule "saveDXF" draait.
+' Eerste actie = MessageBox met versie. Zie je die niet, dan draait dit bestand niet.
+
+Sub Main()
+	MessageBox.Show("Dit IS SAVE_DXF_2026 (externe rule).", "SAVE_DXF_2026")
+
+	Dim oDoc As Document = ThisDoc.Document
+
+	If String.IsNullOrWhiteSpace(oDoc.FullFileName) Then
+		MessageBox.Show("Sla de tekening eerst op.", "SAVE_DXF_2026")
+		Return
+	End If
+
+	If oDoc.DocumentType <> DocumentTypeEnum.kDrawingDocumentObject Then
+		MessageBox.Show( _
+			"Geen Inventor-tekening." & vbCrLf & _
+			"Type=" & oDoc.DocumentType.ToString() & vbCrLf & _
+			oDoc.FullFileName, _
+			"SAVE_DXF_2026")
+		Return
+	End If
+
+	Dim rev As String = ""
+	Try
+		rev = CStr(iProperties.Value("Project", "Revision Number"))
+	Catch
+		rev = ""
+	End Try
+
+	Dim folder As String = System.IO.Path.GetDirectoryName(oDoc.FullFileName)
+	Dim nameNoExt As String = System.IO.Path.GetFileNameWithoutExtension(oDoc.FullFileName)
+	Dim outFile As String = System.IO.Path.Combine(folder, nameNoExt & "_" & rev & ".dxf")
+
+	Try
+		oDoc.SaveAs(outFile, True)
+		MessageBox.Show("DXF OK:" & vbCrLf & outFile, "SAVE_DXF_2026")
+	Catch ex As Exception
+		MessageBox.Show( _
+			"DXF mislukt (SaveAs)." & vbCrLf & _
+			"Bron: " & oDoc.FullFileName & vbCrLf & _
+			"Doel: " & outFile & vbCrLf & _
+			ex.Message, _
+			"SAVE_DXF_2026")
+	End Try
+End Sub

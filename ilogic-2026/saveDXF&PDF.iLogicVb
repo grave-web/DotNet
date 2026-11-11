@@ -1,0 +1,89 @@
+' saveDXF&PDF 2026 v3 — DXF via SaveAs; PDF via translator of SaveAs-fallback
+
+Sub Main()
+	Const RULE_VERSION As String = "saveDXF&PDF 2026 v3"
+
+	Dim oDoc As Document = ThisDoc.Document
+
+	If String.IsNullOrWhiteSpace(oDoc.FullFileName) Then
+		MessageBox.Show("Sla de tekening eerst op." & vbCrLf & RULE_VERSION, RULE_VERSION)
+		Return
+	End If
+
+	If oDoc.DocumentType <> DocumentTypeEnum.kDrawingDocumentObject Then
+		MessageBox.Show( _
+			"Geen Inventor-tekening." & vbCrLf & _
+			"Type=" & oDoc.DocumentType.ToString() & vbCrLf & _
+			oDoc.FullFileName & vbCrLf & RULE_VERSION, _
+			RULE_VERSION)
+		Return
+	End If
+
+	Dim rev As String = ""
+	Try
+		rev = CStr(iProperties.Value("Project", "Revision Number"))
+	Catch
+		rev = ""
+	End Try
+
+	Dim folder As String = System.IO.Path.GetDirectoryName(oDoc.FullFileName)
+	Dim nameNoExt As String = System.IO.Path.GetFileNameWithoutExtension(oDoc.FullFileName)
+	Dim basePath As String = System.IO.Path.Combine(folder, nameNoExt & "_" & rev)
+	Dim dxfFile As String = basePath & ".dxf"
+	Dim pdfFile As String = basePath & ".pdf"
+
+	' --- DXF (geen translator) ---
+	Try
+		oDoc.SaveAs(dxfFile, True)
+		MessageBox.Show("DXF file created!" & vbCrLf & dxfFile & vbCrLf & RULE_VERSION, RULE_VERSION)
+	Catch ex As Exception
+		MessageBox.Show( _
+			"DXF-export mislukt (SaveAs)." & vbCrLf & _
+			"Bron: " & oDoc.FullFileName & vbCrLf & _
+			"Doel: " & dxfFile & vbCrLf & _
+			ex.Message & vbCrLf & RULE_VERSION, _
+			RULE_VERSION)
+		Return
+	End Try
+
+	' --- PDF ---
+	Try
+		ExportPdf(oDoc, pdfFile)
+		MessageBox.Show("PDF file created!" & vbCrLf & pdfFile & vbCrLf & RULE_VERSION, RULE_VERSION)
+	Catch ex As Exception
+		Try
+			oDoc.SaveAs(pdfFile, True)
+			MessageBox.Show("PDF file created!" & vbCrLf & pdfFile & vbCrLf & RULE_VERSION, RULE_VERSION)
+		Catch ex2 As Exception
+			MessageBox.Show( _
+				"PDF could not be saved" & vbCrLf & pdfFile & vbCrLf & _
+				ex.Message & vbCrLf & ex2.Message & vbCrLf & RULE_VERSION, _
+				"No PDF for you " & ThisApplication.GeneralOptions.UserName & "!")
+		End Try
+	End Try
+End Sub
+
+Sub ExportPdf(oDocument As Document, outFile As String)
+	Dim oAddIn As ApplicationAddIn = _
+		ThisApplication.ApplicationAddIns.ItemById("{0AC6FD95-2F4D-42CE-8BE0-8AEA580399E4}")
+	If oAddIn Is Nothing Then Throw New Exception("PDF translator niet gevonden.")
+	If Not oAddIn.Activated Then oAddIn.Activate()
+
+	Dim PDFAddIn As TranslatorAddIn = TryCast(oAddIn, TranslatorAddIn)
+	If PDFAddIn Is Nothing Then Throw New Exception("PDF add-in is geen TranslatorAddIn.")
+
+	Dim oContext As TranslationContext = ThisApplication.TransientObjects.CreateTranslationContext()
+	oContext.Type = IOMechanismEnum.kFileBrowseIOMechanism
+
+	Dim oOptions As NameValueMap = ThisApplication.TransientObjects.CreateNameValueMap()
+	Dim oDataMedium As DataMedium = ThisApplication.TransientObjects.CreateDataMedium()
+	oDataMedium.FileName = outFile
+
+	If PDFAddIn.HasSaveCopyAsOptions(oDocument, oContext, oOptions) Then
+		oOptions.Value("Remove_Line_Weights") = 1
+		oOptions.Value("Vector_Resolution") = 400
+		oOptions.Value("Sheet_Range") = Inventor.PrintRangeEnum.kPrintAllSheets
+	End If
+
+	PDFAddIn.SaveCopyAs(oDocument, oContext, oOptions, oDataMedium)
+End Sub

@@ -1,0 +1,53 @@
+' saveDXF 2026 v3 — GEEN TranslatorAddIn.SaveCopyAs
+' Als de fout nog "SaveCopyAs" of "line 40" noemt, draait Inventor nog de OUDE rule.
+
+Sub Main()
+	Const RULE_VERSION As String = "saveDXF 2026 v3"
+
+	Dim oDoc As Document = ThisDoc.Document
+
+	If String.IsNullOrWhiteSpace(oDoc.FullFileName) Then
+		MessageBox.Show("Sla de tekening eerst op." & vbCrLf & RULE_VERSION, RULE_VERSION)
+		Return
+	End If
+
+	If oDoc.DocumentType <> DocumentTypeEnum.kDrawingDocumentObject Then
+		MessageBox.Show( _
+			"Geen Inventor-tekening." & vbCrLf & _
+			"Type=" & oDoc.DocumentType.ToString() & vbCrLf & _
+			oDoc.FullFileName & vbCrLf & RULE_VERSION, _
+			RULE_VERSION)
+		Return
+	End If
+
+	Dim rev As String = ""
+	Try
+		rev = CStr(iProperties.Value("Project", "Revision Number"))
+	Catch
+		rev = ""
+	End Try
+
+	Dim folder As String = System.IO.Path.GetDirectoryName(oDoc.FullFileName)
+	Dim nameNoExt As String = System.IO.Path.GetFileNameWithoutExtension(oDoc.FullFileName)
+	Dim outFile As String = System.IO.Path.Combine(folder, nameNoExt & "_" & rev & ".dxf")
+
+	Try
+		' Autodesk: Save Copy As via Document.SaveAs naar .dxf
+		oDoc.SaveAs(outFile, True)
+
+		MessageBox.Show( _
+			"DXF file created!" & vbCrLf & outFile & vbCrLf & RULE_VERSION, _
+			RULE_VERSION, _
+			MessageBoxButtons.OK)
+	Catch ex As Exception
+		MessageBox.Show( _
+			"DXF-export mislukt (SaveAs, geen translator)." & vbCrLf & _
+			"Bron: " & oDoc.FullFileName & vbCrLf & _
+			"Doel: " & outFile & vbCrLf & _
+			"Type: " & oDoc.DocumentType.ToString() & vbCrLf & _
+			ex.GetType().FullName & vbCrLf & _
+			ex.Message & vbCrLf & _
+			RULE_VERSION, _
+			RULE_VERSION)
+	End Try
+End Sub
